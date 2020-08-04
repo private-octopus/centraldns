@@ -26,9 +26,9 @@ class ipdom_line:
             return -1
         elif (self.ip_first > other.ip_first):
             return 1
-        elif (self.ip_last < other.ip_last):
-            return -1
         elif (self.ip_last > other.ip_last):
+            return -1
+        elif (self.ip_last < other.ip_last):
             return 1
         else:
             return 0
@@ -46,6 +46,21 @@ class ipdom_line:
     def __ne__(self, other):
         return self.compare(other) != 0
 
+def append_item_to_compact_list(item, compact_list, heap):
+    ip_next = item.ip_last + 1
+    if item.ip_first < ip_next:
+        if len(compact_list) > 0 and \
+           item.as_number == compact_list[len(compact_list) -1].as_number and \
+           item.ip_first == compact_list[len(compact_list) -1].ip_last + 1:
+           compact_list[len(compact_list) -1].ip_last = item.ip_last
+        else:
+           compact_list.append(item)
+        i = 0
+        while i < len(heap):
+            heap[i].ip_first = ip_next
+            i += 1
+
+
 # Parsing program starts here
 
 if len(sys.argv) != 3:
@@ -53,6 +68,7 @@ if len(sys.argv) != 3:
     exit(1)
 
 bgp_file = sys.argv[1]
+csv_file = sys.argv[2]
 nb_line = 0
 nb_malformed = 0
 nb_bad_prefix = 0
@@ -131,25 +147,69 @@ print("Parse_error: " + str(nb_parse_error))
 print("Sup_prefix: " + str(nb_sup_prefix))
 print("Bad_line: " + str(nb_parse_error))
 
-prefix_list = []
+# prefix_list = []
+#
+# for prefix in ipdom:
+#    prefix_list.append(ipdom[prefix])
+#
+# print("List: " + str(len(prefix_list)))
+#
+# sorted_list = sorted(prefix_list)
 
-for prefix in ipdom:
-    prefix_list.append(ipdom[prefix])
-
-print("List: " + str(len(prefix_list)))
-
-sorted_list = sorted(prefix_list)
-
+sorted_list = sorted(ipdom.values())
 nb_item = 0
 
 for item in sorted_list:
     nb_item += 1
-    if nb_item < 100:
-         print(str(item.ip_first) + "..." + str(item.ip_last))
+    if nb_item < 20:
+         print(str(item.ip_first) + "..." + str(item.ip_last) + " : " + str(item.as_number))
     else:
         break
 
-# TO DO: process the item list to eliminate overlaps
-# TO DO: reduce the list by merging successive equivalent records
-# TO DO: write reduced list to csv in first, last, ASN format -- becoming the default list
-# TO DO: load as splay or similar, provide IP to ASN function.
+compact_list = []
+heap = []
+for item in sorted_list:
+    if len(heap) == 0 or heap[0].ip_first == item.ip_first:
+        heap.append(item)
+    else:
+        # sort the heap so the shorted range is last
+        heap = sorted(heap)
+        # process the ranges in heap that precede the next item
+        while len(heap) > 0 and heap[len(heap) - 1].ip_last < item.ip_first:
+            heap_last = heap.pop()
+            append_item_to_compact_list(heap_last, compact_list, heap)
+        # manage partial overlap with last item
+        if len(heap) > 0 and heap[len(heap) - 1].ip_first < item.ip_first:
+            added_range = heap[len(heap) - 1]
+            added_range.ip_last = item.ip_first - 1       
+            append_item_to_compact_list(added_range, compact_list, heap)
+        # add current item to the heap
+        heap.append(item)
+# Add the reminder of the heap to the ranges
+while len(heap) > 0:
+    heap_last = heap.pop()
+    append_item_to_compact_list(heap_last, compact_list, heap)
+
+print("Non overlapping ranges: " + str(len(compact_list)))
+nb_item = 0
+
+for item in compact_list:
+    nb_item += 1
+    if nb_item < 20:
+         print(str(item.ip_first) + "..." + str(item.ip_last) + " : " + str(item.as_number))
+    else:
+        break
+
+# save the result file
+try:
+    nb_saved = 0
+    file_out = open(csv_file, "w")
+    file_out.write("ip_first, ip_last, as_number,\n")
+    for item in compact_list:
+        file_out.write(str(item.ip_first) + "," + str(item.ip_last) + "," + str(item.as_number) + ",\n")
+        nb_saved += 1
+    file_out.close()
+    print("Saved " + str(nb_saved) + " ranges to " + csv_file)
+except Exception as e:
+    traceback.print_exc()
+    print("Cannot write <" + csv_file+ ">, error: " + str(e));
