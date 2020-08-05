@@ -3,63 +3,112 @@
 #
 # The module dnslookup assesses properties of a domain name: find its root zone, find who manages it,
 # find whether the name is an alias, resolve the chain of aliases, find who serves the IP address.
+# The goal is to observe concentration in both the name services and the distribution services.
+#
+# For name services, we capture the list of NS servers for the specified name.
+# For distribution services, we capture the list of CNames and the IP addresses.
+# We format the results as a JSON entry.
 
 import sys
 import dns.resolver
+
+class dnslook:
+    def __init__(self):
+        self.domain = ""
+        self.ip = []
+        self.ipv6 = []
+        self.zone = ""
+        self.ns = []
+        self.cname = []
+
+    def to_json_array(x):
+        jsa = "["
+        is_first = True
+        for item in x:
+            if not is_first:
+                jsa += ","
+            is_first = False
+            jsa += "\"" + str(item) + "\""
+        jsa += "]"
+        return(jsa)
+
+    def to_json(self):
+        js = "{\"name\":\"" + domain + "\""
+
+        js += ",\"ip\":" + dnslook.to_json_array(self.ip)
+        
+        js += ",\"ipv6\":" + dnslook.to_json_array(self.ipv6)
+
+        js += ",\"zone\":\"" + self.zone + "\""
+
+        js += ",\"ns\":" + dnslook.to_json_array(self.ns)
+
+        js += ",\"cname\":" + dnslook.to_json_array(self.cname)
+        return(js)
+
+    def get_a(self):
+        self.ip = []
+        try:
+            addresses = dns.resolver.query(self.domain, 'A')
+            for ipval in addresses:
+                self.ip.append(ipval.to_text())
+        except Exception as e:
+            pass
+
+    def get_aaaa(self):
+        self.ipv6 = []
+        try:
+            addresses = dns.resolver.query(self.domain, 'AAAA')
+            for ipval in addresses:
+                self.ipv6.append(ipval.to_text())
+        except Exception as e:
+            pass
+
+    def get_ns(self):
+        self.ns = []
+        nameparts = self.domain.split(".")
+        while len(nameparts) > 1 :
+            self.zone = ""
+            for p in nameparts:
+                self.zone += p
+                self.zone += '.'
+            try:
+                nameservers = dns.resolver.query(self.zone, 'NS')
+                for nsval in nameservers:
+                    self.ns.append(nsval.to_text())
+                break
+            except Exception as e:
+                nameparts.pop(0)
+
+    def get_cname(self):
+        self.cname = []
+        candidate = self.domain
+        while True:
+            try:
+                aliases = dns.resolver.query(candidate, 'CNAME')
+                if len(aliases) > 0:
+                    candidate = aliases[0].to_text()
+                    self.cname.append(candidate)
+                else:
+                    break
+            except Exception as e:
+                break
+
+    def get_domain_data(self, domain):
+        self.domain = domain
+        self.get_a()
+        self.get_aaaa()
+        self.get_ns()
+        self.get_cname()
+
+# Basic tests
 
 if len(sys.argv) != 2:
     print("Usage: " + argv[0] + " domain-name")
     exit(1)
 
 domain = sys.argv[1]
-
-try:
-    addresses = dns.resolver.query(domain, 'A')
-    for ipval in addresses:
-        print('IP', ipval.to_text())
-except Exception as e:
-    pass
-
-try:
-    addresses6 = dns.resolver.query(domain, 'AAAA')
-    for ipval6 in addresses6:
-        print('IPv6', ipval6.to_text())
-except Exception as e:
-    pass
-
-nameparts = domain.split(".")
-while len(nameparts) > 1 :
-    zone = ""
-    for p in nameparts:
-        zone += p
-        zone += '.'
-    try:
-        nameservers = dns.resolver.query(zone, 'NS')
-        print('zone', zone)
-        for nsval in nameservers:
-            print('NS', nsval.to_text())
-        break
-    except Exception as e:
-        nameparts.pop(0)
-
-
-candidates = [ domain ]
-locations = []
-while len(candidates) > 0:
-    x =  candidates[0]
-    candidates.pop(0)
-    try:
-        aliases = dns.resolver.query(x, 'CNAME')
-        for cnameval in aliases:
-            print (' cname target address:' + str(cnameval.target))
-            candidates.append(str(cnameval.target))
-    except Exception as e:
-        locations.append(x)
-print("locations for " + domain)
-for location in locations:
-    print(location)
-
-# TODO: BGP table from https://bgp.potaroo.net/as6447/bgptable.txt (or other AS)
-# FOrmat: 1.0.0.0/24 147.28.7.2 3130 2914 13335
-#         subnet     next hop    as    as  as (owner of IP)
-# sometimes ">" before first line.
+v = dnslook()
+v.get_domain_data(domain)
+js = v.to_json()
+print(js)
