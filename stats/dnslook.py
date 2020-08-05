@@ -11,6 +11,8 @@
 
 import sys
 import dns.resolver
+import json
+import traceback
 
 class dnslook:
     def __init__(self):
@@ -34,17 +36,40 @@ class dnslook:
 
     def to_json(self):
         js = "{\"name\":\"" + domain + "\""
-
-        js += ",\"ip\":" + dnslook.to_json_array(self.ip)
-        
+        js += ",\"ip\":" + dnslook.to_json_array(self.ip)       
         js += ",\"ipv6\":" + dnslook.to_json_array(self.ipv6)
-
         js += ",\"zone\":\"" + self.zone + "\""
-
         js += ",\"ns\":" + dnslook.to_json_array(self.ns)
-
         js += ",\"cname\":" + dnslook.to_json_array(self.cname)
+        js += "}"
         return(js)
+    
+    def from_json(self, js):
+        ret = True
+        try:
+            jd = json.loads(js)
+            if not 'name' in jd:
+                ret = False
+            else:
+                self.__init__()
+                self.name = jd['name']
+                if 'ip' in jd:
+                    self.ip = jd['ip']
+                if 'ipv6' in jd:
+                    self.ipv6 = jd['ipv6']
+                if 'zone' in jd:
+                    self.zone = jd['zone']
+                if 'ns' in jd:
+                    self.ns = jd['ns']
+                if 'cname' in jd:
+                    self.cname = jd['cname']
+        except Exception as e:
+            traceback.print_exc()
+            print("Cannot parse <" + js + ">")
+            print("error: " + str(e));
+            ret = False
+        return(ret)
+
 
     def get_a(self):
         self.ip = []
@@ -100,6 +125,8 @@ class dnslook:
         self.get_aaaa()
         self.get_ns()
         self.get_cname()
+            
+
 
 # Basic tests
 
@@ -112,3 +139,13 @@ v = dnslook()
 v.get_domain_data(domain)
 js = v.to_json()
 print(js)
+w = dnslook()
+if w.from_json(js):
+    js2 = w.to_json()
+    if js2 == js:
+        print("Parsed json matches input")
+    else:
+        print("Converted from json differs:")
+        print(js2)
+else:
+    print("Cannot parse json output")
