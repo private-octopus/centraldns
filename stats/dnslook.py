@@ -44,7 +44,7 @@ class dnslook:
         return(jsa)
 
     def to_json(self):
-        js = "{\"name\":\"" + domain + "\""
+        js = "{\"domain\":\"" + self.domain + "\""
         js += ",\"ip\":" + dnslook.to_json_array(self.ip)       
         js += ",\"ipv6\":" + dnslook.to_json_array(self.ipv6)
         js += ",\"zone\":\"" + self.zone + "\""
@@ -57,11 +57,11 @@ class dnslook:
         ret = True
         try:
             jd = json.loads(js)
-            if not 'name' in jd:
+            if not 'domain' in jd:
                 ret = False
             else:
                 self.__init__()
-                self.name = jd['name']
+                self.domain = jd['domain']
                 if 'ip' in jd:
                     self.ip = jd['ip']
                 if 'ipv6' in jd:
@@ -134,27 +134,3 @@ class dnslook:
         self.get_aaaa()
         self.get_ns()
         self.get_cname()
-            
-
-
-# Basic tests
-
-if len(sys.argv) != 2:
-    print("Usage: " + argv[0] + " domain-name")
-    exit(1)
-
-domain = sys.argv[1]
-v = dnslook()
-v.get_domain_data(domain)
-js = v.to_json()
-print(js)
-w = dnslook()
-if w.from_json(js):
-    js2 = w.to_json()
-    if js2 == js:
-        print("Parsed json matches input")
-    else:
-        print("Converted from json differs:")
-        print(js2)
-else:
-    print("Cannot parse json output")
