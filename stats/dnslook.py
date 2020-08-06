@@ -8,6 +8,15 @@
 # For name services, we capture the list of NS servers for the specified name.
 # For distribution services, we capture the list of CNames and the IP addresses.
 # We format the results as a JSON entry.
+#
+# The procedures are embedded in the class "dnslook", with three main methods:
+#
+# get_domain_data(self, domain): read from the DNS the data for the specified domain, and 
+# store the results in the referenced object.
+# 
+# to_json(self): serialize the object as a JSON string.
+#
+# from_json(self, js): load the object value from a JSON string. 
 
 import sys
 import dns.resolver
