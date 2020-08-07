@@ -29,6 +29,8 @@ import sys
 import traceback
 import dnslook
 import os.path
+import publicsuffix
+import ip2as
 
 def usage(sn):
     print("Usage: " + sn + " ip2as.csv publicsuffix.dat million_file domain_list_file [nb_search]")
