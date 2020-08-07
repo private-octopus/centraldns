@@ -7,6 +7,9 @@
 #
 # For name services, we capture the list of NS servers for the specified name.
 # For distribution services, we capture the list of CNames and the IP addresses.
+# We also compute the "server name" and the AS Number. The server name is defined as the public suffix
+# of the last CNAME, or that of the actual name if there are no CNAME. The AS Number is that of the
+# first IPv4 address returned in the list.
 # We format the results as a JSON entry.
 #
 # The procedures are embedded in the class "dnslook", with three main methods:
@@ -22,6 +25,8 @@ import sys
 import dns.resolver
 import json
 import traceback
+import publicsuffix
+import ip2as
 
 class dnslook:
     def __init__(self):
@@ -31,6 +36,8 @@ class dnslook:
         self.zone = ""
         self.ns = []
         self.cname = []
+        self.server = ""
+        self.as_number = 0
 
     def to_json_array(x):
         jsa = "["
@@ -50,6 +57,9 @@ class dnslook:
         js += ",\"zone\":\"" + self.zone + "\""
         js += ",\"ns\":" + dnslook.to_json_array(self.ns)
         js += ",\"cname\":" + dnslook.to_json_array(self.cname)
+        js += ",\"server\":\"" + self.server + "\""
+        if self.as_number > 0:
+            js += ",\"as_number\":" + str(self.as_number)
         js += "}"
         return(js)
     
@@ -72,13 +82,16 @@ class dnslook:
                     self.ns = jd['ns']
                 if 'cname' in jd:
                     self.cname = jd['cname']
+                if 'server' in jd:
+                    self.server = jd['server']
+                if 'as_number' in jd:
+                    self.as_number = jd['as_number']
         except Exception as e:
             traceback.print_exc()
             print("Cannot parse <" + js + ">")
             print("error: " + str(e));
             ret = False
         return(ret)
-
 
     def get_a(self):
         self.ip = []
@@ -128,9 +141,28 @@ class dnslook:
             except Exception as e:
                 break
 
-    def get_domain_data(self, domain):
+    def get_server(self, ps, test=False):
+        if len(ps.table) > 0:
+            if len(self.cname) == 0:
+                self.server = ps.suffix(self.domain)
+                if test:
+                    print("No cname. Domain: \"" + self.domain + "\", server: \"" + self.server + "\"")
+            else:
+                self.server = ps.suffix(self.cname[-1])
+                if test:
+                    print("Cname[-1]: \"" + self.cname[-1] + "\", server: \"" + self.server + "\"")
+        elif test:
+            print("Empty table.")
+
+    def get_asn(self, i2a):
+        if len(i2a.table) > 0 and len(self.ip) > 0:
+            self.as_number = i2a.get_asn(self.ip[0])
+
+    def get_domain_data(self, domain, ps, i2a):
         self.domain = domain
         self.get_a()
         self.get_aaaa()
         self.get_ns()
         self.get_cname()
+        self.get_server(ps)
+        self.get_asn(i2a)

@@ -31,22 +31,37 @@ import dnslook
 import os.path
 
 def usage(sn):
-    print("Usage: " + sn + " million_file domain_list_file [nb_search]")
+    print("Usage: " + sn + " ip2as.csv publicsuffix.dat million_file domain_list_file [nb_search]")
     exit(1)
 
 # Check the input arguments
 
-if len(sys.argv) < 3 or len(sys.argv) > 4:
+if len(sys.argv) < 5 or len(sys.argv) > 6:
     usage(sys.argv[0])
-million_file = sys.argv[1]
-domain_list_file = sys.argv[2]
+ip2as_file = sys.argv[1]
+public_suffix_file = sys.argv[2]
+million_file = sys.argv[3]
+domain_list_file = sys.argv[4]
 nb_to_search = 1000000
-if len(sys.argv) == 4:
+if len(sys.argv) == 6:
     try:
-        nb_to_search = int(sys.argv[3])
+        nb_to_search = int(sys.argv[5])
     except:
-        print(sys.argv[3] + " is not a valid number.")
+        print(sys.argv[5] + " is not a valid number.")
         usage(sys.argv[0])
+
+# create the tables of public suffix and as number 
+ps = publicsuffix.public_suffix()
+if not ps.load_file(public_suffix_file):
+    print("Could not load the suffixes")
+    exit(1)
+
+i2a = ip2as.ip2as_table()
+if i2a.load(ip2as_file):
+    print("Loaded i2a table of length: " + str(len(i2a.table)))
+else:
+    print("Could not load <" + ip2as_file + ">")
+    exit(1)
 
 # create the dictionary of names.
 domains = dict()
@@ -97,7 +112,7 @@ try:
         if not name in domains:
             nb_domains_searched += 1
             domain = dnslook.dnslook()
-            domain.get_domain_data(line.strip())
+            domain.get_domain_data(line.strip(), ps, i2a)
             f_out.write(domain.to_json() + "\n")
             domains[domain.domain] = domain
             nb_domains_added += 1
