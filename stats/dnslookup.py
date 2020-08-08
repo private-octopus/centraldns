@@ -42,6 +42,19 @@ try:
             nb_lines += 1 
             d = dnslook.dnslook()
             if d.from_json(line):
+                if len(d.ns) == 0:
+                    print("Correcting: " + d.domain)
+                    d.get_ns()
+                    # if that was successful, try getting an IP address
+                    if len(d.ns) > 0 and len(d.ip) == 0:
+                        d.get_a()
+                    # if that was successful, try filling other missing data
+                    # if not, don't, because that would be a waste of time
+                    if len(d.ip) > 0:
+                        if len(d.ipv6) == 0:
+                            d.get_aaaa()
+                        if len(d.cname) == 0:
+                            d.get_cname()
                 if d.server == "":
                     d.get_server(ps)
                 if d.as_number == 0:
