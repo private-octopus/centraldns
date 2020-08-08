@@ -65,7 +65,34 @@ class count_bucket:
         return self.compare(other) >= 0
     def __ne__(self, other):
         return self.compare(other) != 0
-         
+
+
+class count_item:
+    def __init__(self):
+        self.count = 0
+        self.n_addr = 0
+        self.n_domains = 0
+
+    def compare(self, other):
+        if (self.count > other.count):
+            return -1
+        elif (self.count < other.count):
+            return 1
+        else:
+            return 0
+    
+    def __lt__(self, other):
+        return self.compare(other) < 0
+    def __gt__(self, other):
+        return self.compare(other) > 0
+    def __eq__(self, other):
+        return self.compare(other) == 0
+    def __le__(self, other):
+        return self.compare(other) <= 0
+    def __ge__(self, other):
+        return self.compare(other) >= 0
+    def __ne__(self, other):
+        return self.compare(other) != 0         
 
 class bucket_stats:
     def __init__(self):
@@ -74,6 +101,7 @@ class bucket_stats:
         self.b_min = 0
         self.b_max = 0
         self.b_n_addr = 0
+        self.b_nb_domains = 0
 
     def add(self, count):
         if count in self.counts:
@@ -86,17 +114,17 @@ class bucket_stats:
 
     def do_stats(self):
         if len(self.counts) > 0:
-           sum_nxb = 0
            self.b_n_addr = 0
            self.b_average = 0
            self.b_min = 100000000000
            self.b_max = 0
+           self.b_n_domains = 0
            for count in self.counts:
-               sum_nxb += count * self.counts[count].number
+               self.b_n_domains += count * self.counts[count].number
                self.b_n_addr += self.counts[count].number
                self.b_min = min(self.b_min, count)
                self.b_max = max(self.b_max, count)
-           self.b_average = sum_nxb / self.b_n_addr
+           self.b_average = self.b_n_domains / self.b_n_addr
 
 class buckets:
     def __init__(self, asn_targets):
@@ -241,6 +269,8 @@ print("nb_asn_written: " + str(nb_written))
 print("nb_domains_counted: " + str(nb_total))
 
 b = buckets(asn_top_10)
+count_dict = dict()
+
 
 n_ip_print = 0
 for item in ip_dict:
@@ -248,8 +278,18 @@ for item in ip_dict:
         print(str(item) + ", " + str(ip_dict[item].asn) + ", " + str(ip_dict[item].count))
         n_ip_print += 1
     b.add(ip_dict[item].asn, ip_dict[item].count)
+    if ip_dict[item].count in count_dict:
+        count_dict[ip_dict[item].count].n_addr += 1
+        count_dict[ip_dict[item].count].n_domains += ip_dict[item].count
+    else:
+        item = count_item()
+        item.count = ip_dict[item].count
+        item.n_addr = 1
+        item.n_domains = ip_dict[item].count
+        count_dict[ip_dict[item].count] = item
 
 b.do_stats()
+count_list = sorted(count_dict.values())
 
 for asn in b.asn_buckets:
     print(str(asn) + ": " + str(len(b.asn_buckets[asn].counts)) + " buckets.")
@@ -269,13 +309,17 @@ try:
         if len(asname_parts) >= 2:
             country = asname_parts[-1].strip()
         x = b.asn_buckets[asn]
-        f_ip.write(str(asn) + "," + str(x.b_n_addr) + "," + str(x.b_average) + "," \
-            + str(x.b_min) + "," + str(x.b_max) + "," \
+        f_ip.write(str(asn) + "," + str(x.b_n_domains) + "," + str(x.b_n_addr) + ","  \
+            + str(x.b_average) + "," + str(x.b_min) + "," + str(x.b_max) + "," \
             + astag + "," + country +",\n")
-    f_ip.write("," + str(b.other_asn.b_n_addr) + "," + str(b.other_asn.b_average) + "," \
+    f_ip.write("," + str(b.other_asn.b_n_domains) + ","  + str(b.other_asn.b_n_addr) + "," + str(b.other_asn.b_average) + "," \
          + str(b.other_asn.b_min) + "," + str(b.other_asn.b_max) + ", all other ASes, ,\n")
-    f_ip.write("," + str(b.overall.b_n_addr) + "," + str(b.other_asn.b_average) + "," \
+    f_ip.write("," + str(b.overall.b_n_domains) + "," + str(b.overall.b_n_addr) + "," + str(b.other_asn.b_average) + "," \
          + str(b.overall.b_min) + "," + str(b.overall.b_max) + ", all included, ,\n")
+
+    f_ip.write("\ncount, n_addr, n_domains\n")
+    for c in count_list:
+        f_ip.write(str(c.count) + "," + str(c.n_addr) + "," + str(c.n_domains) + "\n")
     f_ip.close()
 except Exception as e:
     traceback.print_exc()
