@@ -2,25 +2,14 @@
 # coding=utf-8
 #
 # Build an IP Address to AS number conversion table.
-# Start with a BGP table, then produce an ordered list of ip addresses.
-# Lookup will load this ordered list and answer the question.
-# Get the BGP table from https://bgp.potaroo.net/as6447/bgptable.txt (or other AS)
-# Format: 1.0.0.0/24 147.28.7.2 3130 2914 13335
-#         subnet     next hop    as    as  as (owner of IP)
-# sometimes ">" before first line.
-# Final result is a table where each line has three items:
-#    ip_first: first IP address in range
-#    ip_last: last address IP address in range
-#    as_number: autonomous system number for that range
-# The final table aggregates all consecutive ranges that point to the same AS.
+# The input should be the table ip2asn-v4.tsv from https://iptoasn.com/data/ip2asn-v4.tsv.gz
 
 import sys
 import traceback
 import ipaddress
 
-class ipdom_line:
+class ipdomv4_line:
     def __init__(self):
-        self.prefix_length = 0
         self.as_number = 0
         self.duplicates = 0
         self.ip_first = ipaddress.ip_address("0.0.0.0")
@@ -69,15 +58,12 @@ def append_item_to_compact_list(item, compact_list, heap):
 # Parsing program starts here
 
 if len(sys.argv) != 3:
-    print("Usage: " + sys.argv[0] + " bgp_file + mapping_file")
+    print("Usage: " + sys.argv[0] + " ip2asn_file + mapping_file")
     exit(1)
 
-bgp_file = sys.argv[1]
+ip2asn_file = sys.argv[1]
 csv_file = sys.argv[2]
 nb_line = 0
-nb_malformed = 0
-nb_bad_prefix = 0
-nb_sup_prefix = 0
 nb_duplicates = 0
 nb_parse_error = 0
 nb_bad_line = 0
@@ -87,121 +73,60 @@ nb_ipv6 = 0
 ipdom = dict()
 
 try:
-    for line in open(bgp_file , "rt"):
-        try:
-            nb_line += 1
-            strip_line = line.strip()
-            parts = strip_line.split(" ")
-            prefix = parts[0]
-            if prefix.startswith('>'):
-                prefix_minus = prefix[1:]
-                nb_sup_prefix += 1
-                if nb_sup_prefix < 10:
-                    print("Replaced prefix " + prefix + " by " + prefix_minus)
-                prefix = prefix_minus
-            prefix_parts = prefix.split("/")
-            if len(parts) < 2:
-                nb_malformed += 1
-            elif len(prefix_parts) != 2:
-                nb_bad_prefix += 1
-                if nb_bad_prefix < 10:
-                    print("Bad prefix: <" + strip_line + "> prefix: <" + prefix + "> prefix parts: " + str(len(prefix_parts))) 
-            elif prefix in ipdom:
-                nb_duplicates += 1
-                ipdom[prefix].duplicates += 1
-            else:
-                ip_d_l = ipdom_line()
-                try:
-                    subnet = ipaddress.ip_network(prefix)
-                    if subnet.version == 4:
-                        nb_ipv4 += 1
-                    else:
-                        nb_ipv6 += 1
-                    ip_d_l.ip_first = subnet.network_address
-                    ip_d_l.ip_last = subnet.network_address + subnet.num_addresses - 1
-                    if len(ipdom) < 10:
-                        print(prefix + " = " + str(ip_d_l.ip_first) + " ... " + str(ip_d_l.ip_last))
-                    if parts[len(parts)-1].startswith("{"):
-                        ip_d_l.as_number = int(parts[len(parts)-2])
-                    else:
-                        ip_d_l.as_number = int(parts[len(parts)-1])
-                    ipdom[prefix] = ip_d_l
-                except Exception as e:
-                    traceback.print_exc()
-                    print("Got exception: " + str(e))
-                    nb_parse_error += 1
-                    if nb_parse_error < 10:
-                        print("Bad line: <" + line.strip() + ">") 
-        except Exception as e:
-            traceback.print_exc()
-            print("Got exception: " + str(e))
+    for line in open(ip2asn_file , "rt"):
+        nb_line += 1
+        strip_line = line.strip()
+        parts = strip_line.split("\t")
+        if len(parts) < 3:
+            if nb_bad_line  < 10:
+                printf("Malformed line: " + strip_line)
             nb_bad_line += 1
-            if nb_bad_line < 10:
-                print("Bad line: <" + line.strip() + ">") 
-    print("Found " + str(nb_line) + " lines in " + bgp_file )
+        else:
+            ip_dv4 = ipdomv4_line()
+            try:
+                ip_dv4.ip_first = ipaddress.ip_address(parts[0])
+                ip_dv4.ip_last = ipaddress.ip_address(parts[1])
+                ip_dv4.as_number = int(parts[2])
+                if len(ipdom) < 10:
+                    print(str(ip_dv4.ip_first) + " ... " + str(ip_dv4.ip_last) + " --> " + str(ip_dv4.as_number))
+                if ip_dv4.ip_first in ipdom:
+                    if nb_duplicate < 10:
+                        print("duplicate: " + str(ip_dv4.ip_first) + " ... " + str(ip_dv4.ip_last))
+                    nb_duplicate += 1
+                else:
+                    ipdom[ip_dv4.ip_first] = ip_dv4          
+            except Exception as e:
+                traceback.print_exc()
+                print("Got exception: " + str(e))
+                nb_parse_error += 1
+                if nb_parse_error < 10:
+                    print("Parse error: <" + line.strip() + ">")
+    print("Found " + str(nb_line) + " lines in " + ip2asn_file )
 except:
-    print("Error after " + str(nb_line) + " lines in " + bgp_file)
+    print("Error after " + str(nb_line) + " lines in " + ip2asn_file)
 
 print("Entries: " + str(len(ipdom)))
-print("IPv4: " + str(nb_ipv4))
-print("IPv6: " + str(nb_ipv6))
-print("Malformed: " + str(nb_malformed))
-print("Bad_prefix: " + str(nb_bad_prefix))
 print("Duplicates: " + str(nb_duplicates))
 print("Parse_error: " + str(nb_parse_error))
-print("Sup_prefix: " + str(nb_sup_prefix))
 print("Bad_line: " + str(nb_parse_error))
 
 sorted_list = sorted(ipdom.values())
-nb_item = 0
-
-for item in sorted_list:
-    nb_item += 1
-    if nb_item < 20:
-         print(str(item.ip_first) + "..." + str(item.ip_last) + " : " + str(item.as_number))
-    else:
-        break
-
-compact_list = []
-heap = []
-for item in sorted_list:
-    if len(heap) == 0 or heap[0].ip_first == item.ip_first:
-        heap.append(item)
-    else:
-        # sort the heap so the shorted range is last
-        heap = sorted(heap)
-        # process the ranges in heap that precede the next item
-        while len(heap) > 0 and heap[len(heap) - 1].ip_last < item.ip_first:
-            heap_last = heap.pop()
-            append_item_to_compact_list(heap_last, compact_list, heap)
-        # manage partial overlap with last item
-        if len(heap) > 0 and heap[len(heap) - 1].ip_first < item.ip_first:
-            added_range = heap[len(heap) - 1]
-            added_range.ip_last = item.ip_first - 1       
-            append_item_to_compact_list(added_range, compact_list, heap)
-        # add current item to the heap
-        heap.append(item)
-# Add the reminder of the heap to the ranges
-while len(heap) > 0:
-    heap_last = heap.pop()
-    append_item_to_compact_list(heap_last, compact_list, heap)
-
-print("Non overlapping ranges: " + str(len(compact_list)))
-nb_item = 0
-
-for item in compact_list:
-    nb_item += 1
-    if nb_item < 20:
-         print(str(item.ip_first) + "..." + str(item.ip_last) + " : " + str(item.as_number))
-    else:
-        break
 
 # save the result file
+
+overlap_found = False
 try:
     nb_saved = 0
+    ip_previous = ipaddress.ip_address("0.0.0.0")
+    after_first = False
     file_out = open(csv_file, "w")
     file_out.write("ip_first, ip_last, as_number,\n")
-    for item in compact_list:
+    for item in sorted_list :
+        if after_first and item.ip_first <= ip_previous:
+            print("Found overlap, " + str(item.ip_first) + "," + str(ip_previous))
+            break
+        ip_previous = item.ip_first
+        after_first = True
         file_out.write(str(item.ip_first) + "," + str(item.ip_last) + "," + str(item.as_number) + ",\n")
         nb_saved += 1
     file_out.close()

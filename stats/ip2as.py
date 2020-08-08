@@ -88,3 +88,42 @@ class ip2as_table:
             pass
         return asn
 
+class asname:
+    def __init__(self):
+        self.table = dict()
+
+    def load(self, file_name, test=False):
+        ret = True
+        nb_asn = 0
+        try:
+            for line in open(file_name, "rt"):
+                l = line.strip()
+                asn = 0
+                as_check = l[0:2]
+                asn_x = l[2:14].strip()
+                name = l[14:]
+                if test and nb_asn < 10:
+                    print(as_check + "//" + asn_x + "//" + name)
+                try:
+                    asn = int(asn_x)
+                    if not asn in self.table:
+                        self.table[asn] = name
+                        nb_asn += 1
+                    elif test:
+                        print("Duplicate: " + str(asn) + ", \"" + name + "\" (\"" + self.table[asn] + "\")")
+                except Exception as e:
+                    traceback.print_exc()
+                    print("When parsing asn \"" + asn_x + "\": " + str(e))
+                    ret = False
+                    break
+        except Exception as e:
+            traceback.print_exc()
+            print("When loading <" + file_name + ">: " + str(e))
+            ret = False
+        return ret
+
+    def name(self, asn):
+        n = "?"
+        if asn in self.table:
+            n = self.table[asn]
+        return n
