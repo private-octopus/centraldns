@@ -228,7 +228,8 @@ if nb_domains == 0:
 
 asn_list = sorted(asn_dict.values())
 c_cumul = 0
-asn_top_10 = []
+asn_top_number = 20
+asn_top = []
 asn_rank = 0
 nb_written = 0
 nb_total = 0
@@ -237,8 +238,8 @@ try:
     f_out = open(asn_stats_file, "wt", encoding="utf-8")
     f_out.write("ASN,Count,Cumul_C,Share,Cumul_S,ASName,ASCountry\n")
     for asnl in asn_list:
-        if asn_rank < 10:
-            asn_top_10.append(asnl.asn)
+        if asn_rank < asn_top_number:
+            asn_top.append(asnl.asn)
         asn_rank += 1
         share = asnl.count/nb_asn_domains
         c_cumul += asnl.count
@@ -268,13 +269,14 @@ except Exception as e:
 print("nb_asn_written: " + str(nb_written))
 print("nb_domains_counted: " + str(nb_total))
 
-b = buckets(asn_top_10)
+b = buckets(asn_top)
 count_dict = dict()
 
-
+n_max = 10
 n_ip_print = 0
+
 for item in ip_dict:
-    if n_ip_print < 10:
+    if n_ip_print < n_max:
         print(str(item) + ", " + str(ip_dict[item].asn) + ", " + str(ip_dict[item].count))
         n_ip_print += 1
     b.add(ip_dict[item].asn, ip_dict[item].count)
@@ -282,11 +284,11 @@ for item in ip_dict:
         count_dict[ip_dict[item].count].n_addr += 1
         count_dict[ip_dict[item].count].n_domains += ip_dict[item].count
     else:
-        item = count_item()
-        item.count = ip_dict[item].count
-        item.n_addr = 1
-        item.n_domains = ip_dict[item].count
-        count_dict[ip_dict[item].count] = item
+        x = count_item()
+        x.count = ip_dict[item].count
+        x.n_addr = 1
+        x.n_domains = ip_dict[item].count
+        count_dict[ip_dict[item].count] = x
 
 b.do_stats()
 count_list = sorted(count_dict.values())
@@ -296,7 +298,7 @@ for asn in b.asn_buckets:
 
 try:
     f_ip = open(ip_stats_file, "wt", encoding="utf-8")
-    f_ip.write("ASN,nb_addr,n_average,n_min,n_max,ASName,ASCountry\n")
+    f_ip.write("ASN,n_domains,n_addr,n_average,n_min,n_max,ASName,ASCountry\n")
     for asn in b.asn_buckets:
         asname = asnamer.name(asn)
         asname_parts = asname.split(",")
@@ -314,7 +316,7 @@ try:
             + astag + "," + country +",\n")
     f_ip.write("," + str(b.other_asn.b_n_domains) + ","  + str(b.other_asn.b_n_addr) + "," + str(b.other_asn.b_average) + "," \
          + str(b.other_asn.b_min) + "," + str(b.other_asn.b_max) + ", all other ASes, ,\n")
-    f_ip.write("," + str(b.overall.b_n_domains) + "," + str(b.overall.b_n_addr) + "," + str(b.other_asn.b_average) + "," \
+    f_ip.write("," + str(b.overall.b_n_domains) + "," + str(b.overall.b_n_addr) + "," + str(b.overall.b_average) + "," \
          + str(b.overall.b_min) + "," + str(b.overall.b_max) + ", all included, ,\n")
 
     f_ip.write("\ncount, n_addr, n_domains\n")
